@@ -5,6 +5,12 @@ from utils.models import BaseModel
 from users.models import User
 
 
+class Status(models.TextChoices):
+    ONGOING = "Ongoing"
+    DELIVERED = "Delivered"
+    UPCOMMING = "Upcomming"
+
+
 class Address(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="addresses")
 
@@ -39,18 +45,15 @@ class Product(BaseModel):
         validators=[MaxValueValidator(5), MinValueValidator(0)], null=True, blank=True
     )
 
-    category = models.ForeignKey(
-        Category, on_delete=models.CASCADE, related_name="products"
-    )
+    category = models.ManyToManyField(Category, related_name="products")
 
     def __str__(self) -> str:
         return self.title
 
 
-class ProductAmount(BaseModel):
-    product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, related_name="product_amounts"
-    )
+class Cart(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="carts")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="carts")
 
     amount = models.PositiveIntegerField(default=1)
     price = models.PositiveIntegerField(blank=True)
@@ -63,16 +66,31 @@ class ProductAmount(BaseModel):
         super().save(*args, **kwargs)
 
 
-class Order(BaseModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
-    products = models.ManyToManyField(through=ProductAmount)
+class Checkout(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="checkouts")
+    carts = models.ManyToManyField(Cart, related_name="checkouts")
 
     promotional_discount = models.PositiveIntegerField(default=0)
     shipping_fee = models.PositiveIntegerField(default=0)
 
-    total_price = models.PositiveBigIntegerField()
+    total_price = models.PositiveBigIntegerField(blank=True)
 
     is_paid = models.BooleanField(default=False)
 
+    status = models.CharField(
+        max_length=64,
+        choices=Status.choices,
+        default=Status.ONGOING,
+    )
+
     def __str__(self) -> str:
         return f"{self.user_id} - {self.total_price}"
+
+    # def save(self, *args, **kwargs):
+    #     print(f"\n\n{self.carts.aaggregate(models.Sum('price'))}\n\n")
+    #     self.total_price = (
+    #         self.promotional_discount
+    #         + self.shipping_fee
+    #         + self.carts.all().annotate(prices_sum=models.SUM("price"))["prices_sum"]
+    #     )
+    #     super().save(*args, **kwargs)
